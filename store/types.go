@@ -15,8 +15,14 @@ type Store interface {
 	// SetHeight sets the height saved in the Store if it is higher than the existing height.
 	SetHeight(height uint64)
 
+	// todo
+	CreateBatch() Batch
+
+	// todo
+	SaveBatch(batch Batch) error
+
 	// SaveBlock saves block along with its seen commit (which will be included in the next block).
-	SaveBlock(block *types.Block, commit *types.Commit) error
+	SaveBlock(block *types.Block, commit *types.Commit, batch Batch) (Batch, error)
 
 	// LoadBlock returns block at given height, or error if it's not found in Store.
 	LoadBlock(height uint64) (*types.Block, error)
@@ -24,7 +30,7 @@ type Store interface {
 	LoadBlockByHash(hash [32]byte) (*types.Block, error)
 
 	// SaveBlockResponses saves block responses (events, tx responses, validator set updates, etc) in Store.
-	SaveBlockResponses(height uint64, responses *tmstate.ABCIResponses) error
+	SaveBlockResponses(height uint64, responses *tmstate.ABCIResponses, batch Batch) (Batch, error)
 
 	// LoadBlockResponses returns block results at given height, or error if it's not found in Store.
 	LoadBlockResponses(height uint64) (*tmstate.ABCIResponses, error)
@@ -40,7 +46,7 @@ type Store interface {
 	// LoadState returns last state saved with UpdateState.
 	LoadState() (types.State, error)
 
-	SaveValidators(height uint64, validatorSet *tmtypes.ValidatorSet) error
+	SaveValidators(height uint64, validatorSet *tmtypes.ValidatorSet, batch Batch) (Batch, error)
 
 	LoadValidators(height uint64) (*tmtypes.ValidatorSet, error)
 }
