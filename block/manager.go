@@ -219,7 +219,10 @@ func (m *Manager) SyncLoop(ctx context.Context) {
 					m.logger.Error("failed to ApplyBlock", "error", err)
 					continue
 				}
-				err = m.store.SaveBlock(b1, &b2.LastCommit)
+
+				batch := m.store.CreateBatch()
+
+				batch, err = m.store.SaveBlock(b1, &b2.LastCommit, batch)
 				if err != nil {
 					m.logger.Error("failed to save block", "error", err)
 					continue
@@ -231,9 +234,15 @@ func (m *Manager) SyncLoop(ctx context.Context) {
 				}
 				m.store.SetHeight(b1.Header.Height)
 
-				err = m.store.SaveBlockResponses(b1.Header.Height, responses)
+				batch, err = m.store.SaveBlockResponses(b1.Header.Height, responses, batch)
 				if err != nil {
 					m.logger.Error("failed to save block responses", "error", err)
+					continue
+				}
+
+				err = m.store.SaveBatch(batch)
+				if err != nil {
+					m.logger.Error("failed to persist batch to disk", "error", err)
 					continue
 				}
 
@@ -356,6 +365,7 @@ func (m *Manager) publishBlock(ctx context.Context) error {
 	}
 
 	var block *types.Block
+	batch := m.store.CreateBatch()
 
 	// Check if there's an already stored block at a newer height
 	// If there is use that instead of creating a new block
@@ -383,7 +393,7 @@ func (m *Manager) publishBlock(ctx context.Context) error {
 		}
 
 		// SaveBlock commits the DB tx
-		err = m.store.SaveBlock(block, commit)
+		batch, err = m.store.SaveBlock(block, commit, batch)
 		if err != nil {
 			return err
 		}
@@ -408,7 +418,7 @@ func (m *Manager) publishBlock(ctx context.Context) error {
 	}
 
 	// SaveBlockResponses commits the DB tx
-	err = m.store.SaveBlockResponses(block.Header.Height, responses)
+	batch, err = m.store.SaveBlockResponses(block.Header.Height, responses, batch)
 	if err != nil {
 		return err
 	}
@@ -424,8 +434,14 @@ func (m *Manager) publishBlock(ctx context.Context) error {
 	}
 
 	// SaveValidators commits the DB tx
-	err = m.store.SaveValidators(block.Header.Height, m.lastState.Validators)
+	batch, err = m.store.SaveValidators(block.Header.Height, m.lastState.Validators, batch)
 	if err != nil {
+		return err
+	}
+
+	err = m.store.SaveBatch(batch)
+	if err != nil {
+		m.logger.Error("Failed to save batch during PublishBlock")
 		return err
 	}
 
